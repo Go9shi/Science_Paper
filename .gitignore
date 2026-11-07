@@ -1,0 +1,57 @@
+# Python environments
+venv/
+.venv/
+env/
+.env/
+
+# Python caches and build output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Jupyter / Colab temporary files (keep source notebooks)
+.ipynb_checkpoints/
+/content/
+
+# Credentials and local settings (keep configuration examples)
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+credentials.json
+client_secret*.json
+service_account*.json
+token.json
+.secrets/
+
+# Generated experiment output; archive evidence outside Git.
+# Keep protocols, configs, data manifests and curated reports in docs/.
+/research/data/
+/research/artifacts/
+/research/checkpoints/
+/research/runs/
+/research/logs/
+/research/results/
+/research/wandb/
+/research/mlruns/
+
+# Editor and OS temporary files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
