@@ -284,10 +284,14 @@ def test_reset_seed_and_state_are_reproducible():
 
 def test_env_uses_private_price_copies():
     data = toy_market([100., 100., 100.])
-    env = make_env(data)
+    # Isolate copy ownership from commissions (covered by separate fee tests).
+    env = make_env(data, commission_bps=0.)
     data.adjusted_open.iloc[1, 0] = 1000.
     env.reset()
     info = env.step(action([1., 0.]))[-1]
+    assert info["execution_prices_synthetic"][0] == 100.
+    assert info["positions_synthetic_units"][0] == pytest.approx(10.)
+    assert info["commission"] == 0.
     assert info["portfolio_value"] == pytest.approx(1000.)
 
 
