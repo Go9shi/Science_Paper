@@ -76,6 +76,13 @@ def verify_saved_run(run_directory: Path) -> dict:
     if (environment.get("project_imports") != "passed" or environment.get("drive_read_write") != "passed"
             or environment.get("direct_versions") != metadata["direct_dependencies"]):
         raise ValueError("Environment/import/Drive preflight is not confirmed")
+    # Legacy reports have no schema field; keep their existing validation contract.
+    if environment.get("schema") == 2:
+        if (environment.get("dependency_closure", {}).get("status") != "passed"
+                or environment.get("pip_check_policy", {}).get("status") not in {"passed", "passed_with_known_warnings"}):
+            raise ValueError("Environment dependency checks have not passed")
+        if environment.get("rl_check_requested") and environment.get("future_stack", {}).get("status") != "passed":
+            raise ValueError("Requested future-stack compatibility check has not passed")
     tests = pytest_summary(run_directory / "pytest.xml")
     if tests != {k: metadata["tests"][k] for k in tests}:
         raise ValueError("Persisted pytest status/counts do not match JUnit")

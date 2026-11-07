@@ -1,8 +1,9 @@
-# Direct dependencies pinned for the Stage 1 baseline, Python 3.11/3.12.
-# Select Colab Runtime Version 2026.07 (Python 3.12); default Python 3.13 is unsupported.
+# Environment candidate env-v2; not yet executed in Colab.
+# Keep the base NumPy/pandas of Colab Runtime Version 2026.07, Python 3.12.
+# Do not use --upgrade/--force-reinstall or change the preinstalled PyTorch build.
 # Colab runtime/transitive dependencies are captured in each run's pip-freeze.txt.
-numpy==2.2.6
-pandas==2.2.3
+numpy==2.0.2
+pandas==2.2.2
 yfinance==0.2.65
 pandas_market_calendars==5.1.1
 matplotlib==3.10.3

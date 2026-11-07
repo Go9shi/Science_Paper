@@ -1,0 +1,6 @@
+# Optional import/ABI preflight only; no training or environment creation.
+# Install together with requirements-colab.txt and the generated runtime constraint.
+# Plain Gymnasium, not gymnasium[torch]/[all] (their NumPy constraints differ).
+# PyTorch must already exist in Colab; preserve its exact installed build.
+gymnasium==1.2.0
+stable-baselines3==2.7.0
