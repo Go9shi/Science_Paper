@@ -261,7 +261,9 @@ def corporate_action_audit(
             "adjustment_factor": factor, "factor_relative_change": change,
             "factor_change_without_reported_event": material_change & ~(cash_event | split_event),
         }, index=sessions)
-        table.index.name = "Date"
+        # Constructor may share the input Index; assign a renamed copy instead
+        # of mutating its metadata through table.index.name.
+        table = table.rename_axis("Date")
         events.append(table.loc[cash_event | split_event | material_change].reset_index())
     event_table = pd.concat(events, ignore_index=True)
     report = {
