@@ -2,10 +2,298 @@
 
 ## Статус и область
 
-Подготовлено для Google Colab. При разработке выполнены только статические проверки
-Python/JSON/notebook. Новые численные тесты, обучение, smoke test и повторная загрузка
-после перезапуска **ещё не выполнены**. Старые 83 пройденных теста этапа 2 не являются
-результатом проверки этой версии. Численные результаты появятся только в артефактах Colab.
+При разработке выполнены только статические проверки Python/JSON/notebook.
+После разработки получен и 2026-11-08 проверен архив пользовательских Colab-запусков:
+обучение smoke и повторная загрузка внутри той же сессии подтверждены в объёме ниже.
+Второй пользовательский архив подтвердил 97 пройденных тестов и preflight каждой из трёх сессий.
+Полная приёмка этапа остаётся открытой: свидетельства загрузки после перезапуска runtime
+ещё не предоставлены. Старые 83 теста этапа 2 не подменяют проверку текущей версии.
+Codex локально обучение или численные тесты не выполнял.
+
+### Проверенные артефакты Colab
+
+Архив `drive-download-20261107T190851Z-1-001.zip`, 261 файл,
+SHA-256 `a9fb6cefafceaab28086dda1e049a0ca13d6053f09fa4cfe560cfc334ccff9be`.
+Все девять runs относятся к commit `a768abcadd295f492d35c6f023b5efcad86fb9cb`,
+run_kind=smoke, random_seed=42, CPU, budget=actual training_steps=4096.
+
+| Session ID в provenance | none run | fixed run | adaptive run |
+|---|---|---|---|
+| 20261107T183925Z-adefbb98 | 20261107T184058Z-none-b074fec0 | 20261107T184121Z-fixed-7252353d | 20261107T184140Z-adaptive-f9bd922e |
+| 20261107T185410Z-340cccff | 20261107T185625Z-none-d541e8e8 | 20261107T185647Z-fixed-fe27326b | 20261107T185706Z-adaptive-da7e72f3 |
+| 20261107T190521Z-8377c857 | 20261107T190619Z-none-ad65b98b | 20261107T190633Z-fixed-d87313a4 | 20261107T190645Z-adaptive-6f734f42 |
+
+Проверено чтением готовых файлов, без запуска PPO/финансовых расчётов:
+
+- Все девять metadata sidecar совпали; проверены все 243 SHA-256 из run manifests
+  (по 27 артефактов на run), отсутствующих файлов и несовпадений нет.
+- Все 45 checkpoint manifests полные, их hashes согласованы; поле num_timesteps
+  в JSON внутри model.zip совпадает с steps manifest. Pickle и Torch tensors не загружались.
+- Каждый training_financials.csv содержит 4096 последовательных training_step, даты только
+  2010-01-04…2018-12-31. Каждый validation_financials.csv — 757 уникальных дат
+  2019-01-02…2021-12-31. data_as_of строго раньше даты решения во всех строках.
+- Сохранённые числовые поля финансов/действий/весов конечны; каждый training_metrics.json
+  содержит 17 записей, основные losses/KL присутствуют и конечны, null не найден.
+  Это проверка сохранённых журналов; исходные массивы всех observations в архив не входят.
+- Config.json совпадают с metadata; все конфигурации одинаковы за исключением reward_mode.
+  Контракты данных и версии библиотек совпадают между девятью runs.
+- reload_check.json всех runs: status=passed, same_runtime_reload=true,
+  exact_actions_and_finances=true, normalization_frozen=true,
+  fresh_session_reload=not_yet_verified. Это свидетельства Colab-процедуры save/load,
+  не самостоятельное повторение Codex и не подтверждение новой сессии.
+- 33 заявленных source hashes совпали с точными Git blobs указанного commit.
+  Сам каталог provenance/source.bundle в первый архив не включён; получен во втором архиве ниже.
+
+Общий Stage 1 источник `20261107T154124Z-9f1f7c1e`, metadata SHA-256
+`adf21713ad9d63871e7faf37456b244cea390a967d88abb5cb5100d113c2dd64`,
+snapshot `daily-v1`, manifest SHA-256
+`c7ebbcb88bb04de4daa3e394258b7bd6472f55ec4f4ee4e892486aa5eb41cb19`,
+sigma_ref `0.11142612683693373`. В provenance train цены ограничены до 2019,
+validation — до 2022; features_test не входит в read_files, test_used=false.
+Проверенный код загрузчика согласуется с этим ограничением; исходные данные здесь не перечитывались.
+
+Записанное окружение: Colab tag `release-colab-external-images_20260715-060047_RC00`,
+Linux x86_64/glibc 2.35, NumPy 2.0.2, pandas 2.2.2, Torch 2.11.0+cpu,
+Gymnasium 1.2.0, SB3 2.7.0, PyArrow 20.0.0, CUDA отсутствует.
+Файлов environment.json/pip-freeze/pip-check в первом архиве нет; они получены и проверены
+во втором архиве ниже.
+
+Первые две группы имеют побайтово одинаковые training/validation financial CSV,
+training_metrics.json и final vecnormalize.pkl для соответствующих режимов.
+Третья группа по этим файлам отличается при том же записанном seed/config/versions.
+Например, сохранённый Net Sharpe none: `1.254365166776023` в первых двух группах
+и `1.2543651916875798` в третьей. Это небольшое различие готовых результатов,
+не установленная причина недетерминизма и не повторная загрузка прежней модели:
+созданы новые runs с новым обучением. При совпавших source hashes, pip freeze и записанных
+версиях причина не установлена; полная конфигурация CPU/backend и внутреннее состояние
+runtime не записывались.
+Нельзя объявлять все повторные обучения побитово одинаковыми или требовать их повторения
+вместо отдельного reload_only. Эти три группы с одним seed не являются тремя независимыми seeds.
+
+### Дополнительная проверка sessions и тестов
+
+Получен архив `drive-download-20261107T191147Z-1-001.zip`, 150 файлов,
+SHA-256 `76e9cf930fedd93dee1556ff181b4a16d9ce21590e3acf63113565b4375c371d`.
+Включены все три sessions из таблицы выше, по 50 файлов на каждую.
+
+- Все три session sidecar совпали; все 144 хеша артефактов из session manifests проверены,
+  отсутствующих файлов и несовпадений нет. Проверены 33 provenance-файла каждой session;
+  source.bundle совпал по хешу, его восстановление не выполнялось.
+- Все JUnit содержат по **97 testcase, 0 failures, 0 errors, 0 skipped**.
+  Session tests status и pytest.log согласованы с JUnit. Время из логов по порядку таблицы:
+  32.77, 33.71 и 22.64 секунды. Два предупреждения Gymnasium относятся к бесконечным
+  границам observation_space и ранее были документированы.
+- Присутствуют и прошли Stage 2 Gymnasium/SB3 checkers, tiny synthetic training/save-load,
+  финансовая независимость от shaping, fixed/adaptive alpha=0, запрет test и фильтрация дат.
+- Проверены связи session → три run ID и обратно, Git SHA, source hashes, версии/Python,
+  все пять session_input_sha256 из metadata каждого run. Validation summary согласована
+  с готовыми validation_metrics.json всех девяти runs; финансовые метрики не пересчитывались.
+- Preflight: project_imports=passed, dependency_closure=passed, problems=[],
+  NumPy/Torch bridge=passed, drive_read_write=passed. Python 3.12.13,
+  Torch 2.11.0+cpu, остальные версии соответствуют описанной выше baseline.
+- Raw pip check exit code=1 во всех случаях: только IPython 7.34.0/missing Jedi и
+  Ibis 9.5.0/Toolz 1.2.0. Policy passed_with_known_warnings, blocking_or_unreviewed=[].
+  Нулевой общий pip check не заявляется. По install reports install=[]: именно эти
+  вызовы pip ничего не устанавливали; это не утверждение обо всех предшествующих установках.
+  Полные pip-freeze совпали по хешу между тремя sessions.
+- Просмотрены готовые validation/training PNG последней session: NAV режимов визуально близки,
+  коэффициенты none/fixed/adaptive различаются согласно конфигурации; value loss снижается
+  на коротком бюджете. Графики не доказывают сходимость, оптимальность или преимущество метода.
+
+Все три session.json имеют execution_mode=train, training_performed_in_this_session=true,
+fresh_session_replay=not_yet_verified. Новые session IDs и повторное обучение не заменяют
+проверку загрузки старого checkpoint после удаления runtime. В обоих архивах нет
+replay_report.json или session с execution_mode=reload_only.
+
+Для завершения приёмки остаётся отдельный runtime restart и режим reload_only с исходными
+run IDs, затем новый session и три replay_report.json. Повторно обучать три политики не требуется.
+
+Разницы пилотных Sharpe не интерпретируются как статистическое или экономическое превосходство.
+Статус: **97 тестов, окружение, smoke и same-runtime save/load подтверждены по артефактам;
+fresh-session reload ещё не подтверждён, полная приёмка этапа 3 не завершена**.
+
+### Ошибка exact replay после перезапуска и подготовленное исправление
+
+После получения двух архивов пользователь запустил reload_only и предоставил traceback:
+проверка версий прошла, затем assert_frame_equal(check_exact=True) не прошёл по portfolio_value.
+Например, первая строка исходного CSV `1009.534986593021`, новая оценка
+`1009.5349865765468`. Это наблюдаемый отказ exact replay; он не превращается в passed
+из-за малости разницы. DeprecationWarning jupyter_client об utcnow не является этим AssertionError.
+
+В commit a768abc выявлена асимметрия: build_ppo вызывает torch.set_num_threads(1) и
+torch.use_deterministic_algorithms(True), а load_saved_policy этих process-global настроек
+не восстанавливает. В режиме train последующая оценка наследует их; в новой сессии
+reload_only build_ppo не вызывается. Настройки inference поэтому не гарантированно одинаковы.
+Это установленный дефект кода и вероятное объяснение traceback, но его причинная роль
+должна быть проверена повторным Colab replay. Число потоков в сессии отказа не приложено.
+
+Подготовлено исправление: общий configure_torch_runtime вызывается до построения PPO
+и до загрузки политики. Число intra-op/inter-op threads, deterministic flag и MKLDNN flag
+записываются в новые checkpoint/replay reports; в metadata обучения — после настройки.
+Добавлен регрессионный тест: маленький synthetic run и exact replay в отдельном
+Python-процессе, которому до загрузки намеренно заданы два потока и deterministic=False.
+Загрузчик должен восстановить один поток/deterministic=True и пройти исходный exact replay.
+Этот новый тест пока подготовлен, **в Colab не выполнен**; ранее подтверждённые 97 cases
+относятся к a768abc и не доказывают прохождение новой проверки.
+
+Для проверки уже существующих runs из a768abc **не нужно переобучать модели, менять SHA,
+NAV, CSV, normalization или допуски**. В текущем старом notebook перед ячейкой 7 выполнить:
+
+```python
+import torch
+
+runtime_before = {
+    "threads": torch.get_num_threads(),
+    "deterministic": torch.are_deterministic_algorithms_enabled(),
+}
+torch.set_num_threads(1)
+torch.use_deterministic_algorithms(True)
+write_json(SESSION_DIR / "torch_runtime_fix.json", {
+    "git_sha": SOURCE_COMMIT,
+    "before": runtime_before,
+    "after": {"threads": torch.get_num_threads(),
+              "deterministic": torch.are_deterministic_algorithms_enabled()},
+    "previous_session_error": session.get("error"),
+    "reason": "Match the existing build_ppo runtime settings before reload_only inference",
+})
+print("Torch runtime:", runtime_before, "->", torch.get_num_threads(),
+      torch.are_deterministic_algorithms_enabled())
+```
+
+Затем повторить ячейку 7 и остальные итоговые ячейки. Файл runtime_fix входит в итоговый
+session manifest. При новом отказе сохранить traceback и session, не ослаблять assert автоматически.
+Этот runtime-only обход явно фиксируется как дополнение к исходному notebook; версии модели
+и исходный provenance не переписываются. Новый код загрузчика вступит в силу только в будущем
+опубликованном commit; для проверки старых моделей notebook сохраняет требование исходного SHA.
+Даже после этой настройки точное равенство между разными CPU/backend/platform не обещается.
+
+Обоснование API: [PyTorch 2.11 set_num_threads](https://docs.pytorch.org/docs/2.11/generated/torch.set_num_threads.html)
+предписывает задавать потоки до eager/JIT/autograd-операций;
+[PyTorch reproducibility](https://docs.pytorch.org/docs/2.11/notes/randomness.html)
+ограничивает гарантии между окружениями. Локально проверен только синтаксис исправления.
+
+### Повторный отказ после настройки потоков
+
+Пользователь предоставил повторный AssertionError с теми же исходным/новым NAV.
+Устранение отказа настройкой потоков не подтверждено; считать гипотезу о потоках
+доказанной причиной нельзя. Дефект асимметричной настройки исправлен в подготовленном
+коде, но может не быть единственным источником разницы. Первый original NAV из traceback
+совпадает с run `20261107T190619Z-none-ad65b98b` из последней группы архива.
+
+Следующий диагностический шаг разделяет два источника: действие сохранённой политики
+и исполнение уже сохранённого действия. Подготовлен first_step_replay_diagnostic:
+сравнивает первое действие точно, затем подаёт исходное action_json новой среде и сравнивает
+первый NAV. Сохраняет CPU capability, Torch build configuration, matmul precision, dtype,
+runtime settings и начальное нормализованное observation. Совпадение первого шага не
+доказывает равенство полного эпизода. В новой версии replay_saved_run при AssertionError
+сохраняет новую траекторию, метрики и failed report вне исходного run, затем повторно
+поднимает исключение. Проверка exact не ослабляется и failed не объявляется passed.
+
+Для старого открытого notebook, без публикации новой версии кода, выполнить отдельную ячейку:
+
+```python
+import json
+import numpy as np
+import pandas as pd
+import torch
+from src.ppo_training import load_saved_policy
+
+root = OUTPUT_ROOT / "runs" / RELOAD_RUN_IDS["none"]
+row = pd.read_csv(root / "validation_financials.csv", float_precision="round_trip").iloc[0]
+model, vector, _, _ = load_saved_policy(root, validation)
+try:
+    obs = vector.reset()
+    predicted, _ = model.predict(obs, deterministic=True)
+    saved = np.asarray(json.loads(row["action_json"]), dtype=model.action_space.dtype)
+    _, _, _, infos = vector.step(saved.reshape(1, -1))
+    diagnostic = {
+        "run": root.name,
+        "threads": torch.get_num_threads(),
+        "deterministic": torch.are_deterministic_algorithms_enabled(),
+        "cpu": getattr(torch.backends.cpu, "get_cpu_capability", lambda: "unknown")(),
+        "matmul_precision": torch.get_float32_matmul_precision(),
+        "first_action_exact": bool(np.array_equal(saved, predicted[0])),
+        "saved_action": saved.tolist(),
+        "new_action": predicted[0].tolist(),
+        "saved_nav": float(row["portfolio_value"]),
+        "nav_using_saved_action": float(infos[0]["portfolio_value"]),
+        "saved_action_execution_exact": bool(infos[0]["portfolio_value"] == float(row["portfolio_value"])),
+    }
+finally:
+    vector.close()
+write_json(SESSION_DIR / "replay_first_step_diagnostic.json", diagnostic)
+print(json.dumps(diagnostic, indent=2))
+```
+
+При first_action_exact=false и saved_action_execution_exact=true расхождение
+локализуется до нейросетевого вывода или его входов, а одинаковое исходное действие
+воспроизводит финансовый первый шаг. Это не доказывает конкретную причину (CPU/backend,
+precision или observation) и не подтверждает весь эпизод. Если saved_action_execution_exact=false,
+нужно дополнительно сравнить конкретные цены, параметры и бухгалтерию исполнения до изменения PPO.
+Флаги exact/failed сохраняют исходный смысл; допуски не выбираются по размеру полученного отклонения.
+Выполнение этой диагностики ожидается в Colab. Локально только синтаксические проверки.
+
+### Подтверждённая локализация первого шага и аудит всего validation
+
+Пользователь предоставил JSON диагностики run `20261107T190619Z-none-ad65b98b`:
+threads=1, deterministic=true, actions_equal=false. Сохранённое действие, поданное в новую
+среду, дало **точно** исходный первый NAV `1009.534986593021`.
+Это подтверждает первый финансовый переход при исходном действии, но не весь эпизод.
+Новые значения отдельных компонентов действия отличаются в младших разрядах float32.
+Конкретная причина различия политики/её входов между runtime пока не установлена.
+Не приписывать это автоматически случайному seed, повреждению checkpoint или конкретной модели CPU.
+
+Подготовлен `src/replay_audit.py`, который может выполняться как отдельный загружаемый
+скрипт в текущем Colab с исходным checkout a768abc. Он использует существующие src modules,
+проверяет хеши/версии, запрещает test и новое обучение; исходные runs не модифицирует.
+Новый evaluator имеет собственный SHA-256 в отчёте, без подмены source Git SHA модели.
+
+Для каждого из трёх matched runs выполняются:
+
+1. Воспроизведение **всех** исходных действий на validation (teacher forcing). Полный CSV,
+   включая NAV, комиссии, оборот, reward и веса, сравнивается с исходным точно.
+2. Предсказания политики на состояниях этой исходной траектории. Сохраняются действия,
+   нормализованные observation, точное равенство и максимальная абсолютная разница.
+   Это отделяет начальную ошибку вывода от последующего feedback через NAV/веса.
+3. Два независимых load и обычных closed-loop evaluation внутри текущего runtime.
+   Действия, финансы и метрики между ними сравниваются точно; отличие от старого runtime
+   сохраняется отдельно. Сохраняются новая финансовая траектория и метрики, без настройки параметров.
+
+Status `diagnostic_complete` означает только завершение аудита. `closed_loop_original.exact=false`
+не превращается в passed; допусков для действий/NAV/метрик не задаётся. Float32 epsilon_at_one
+записывается только для масштаба диагностики, не является формальной границей погрешности нейросети.
+Одно machine epsilon не равно ULP для всех значений действия.
+
+Для запуска без нового обучения или изменения старого GIT_REF:
+
+1. Через левую панель Files Google Colab загрузить локальный `research/src/replay_audit.py`
+   как `/content/replay_audit.py`.
+2. В текущем notebook, где validation уже загружен, выполнить отдельную ячейку:
+
+```python
+import runpy
+
+audit = runpy.run_path("/content/replay_audit.py")["audit_saved_policies"]
+audit_dir = audit(
+    validation,
+    {mode: OUTPUT_ROOT / "runs" / RELOAD_RUN_IDS[mode] for mode in REWARD_MODES},
+    OUTPUT_ROOT / "replay_audits",
+)
+```
+
+3. Предоставить созданный каталог `stage3/replay_audits/<UTC-UUID>` с audit_report.json,
+   sidecar и тремя подпапками. Старую ячейку 7 с exact replay пока повторять не нужно.
+   Скрипт выполняет только технические validation replay, PPO learn не вызывается.
+
+Подготовлены синтетические тесты полного аудита, сохранности metadata и отличия exact
+от расхождения на один representable шаг. Они пока не выполнялись в Colab.
+Фактически подтверждённым результатом остаётся только предоставленная диагностика первого шага;
+весь новый аудит и строгий fresh-session replay ещё не подтверждены.
+
+Первичная документация: [PyTorch 2.11 Numerical accuracy](https://docs.pytorch.org/docs/2.11/notes/numerical_accuracy.html)
+не гарантирует побитовое совпадение вычислений между платформами;
+[NumPy finfo](https://numpy.org/doc/2.0/reference/generated/numpy.finfo.html) определяет epsilon как
+расстояние от единицы до следующего representable значения, а не допуск для портфельной траектории.
 
 Цель — техническая готовность общей процедуры, а не сравнение эффективности методов.
 Гипотеза будущего исследования: адаптация штрафа может повысить Net Sharpe относительно
@@ -228,10 +516,12 @@ checkpoint manifest, model.zip и vecnormalize.pkl. Не публиковать 
 Локально успешно: AST-разбор 20 Python-файлов src/tests, компиляция 10 кодовых ячеек
 без исполнения, структурные проверки двух JSON-конфигов и notebook, `git diff --check`.
 Все execution_count=null, outputs пусты. Это статические проверки, не результаты pytest.
-Число собранных pytest cases устанавливается в Colab,
-не вычисляется из названий функций. Результатов обучения и новых финансовых метрик пока нет.
+Число собранных pytest cases устанавливается по JUnit Colab,
+не вычисляется из названий функций. Фактически полученные позже результаты обучения
+проверены по пользовательскому архиву и отдельно описаны в начале документа.
 
-Остаются: фактический Colab smoke/restart, продолжительность сохранения Drive, GPU-детерминизм,
+Остаются: fresh-session reload,
+объяснение различий третьего повторного обучения, продолжительность сохранения Drive, GPU-детерминизм,
 будущий бюджет настройки и seeds, чувствительность к периоду/издержкам/universe,
 survivorship и point-in-time ограничения источника. Современный список и adjusted execution
 ограничивают перенос результатов на реальное исполнение. Одного seed/короткого pilot недостаточно

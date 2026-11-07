@@ -1,6 +1,10 @@
 """Small synthetic PPO/configuration/metric tests; execute in Google Colab only."""
 from dataclasses import replace
 import json
+from pathlib import Path
+import subprocess
+import sys
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -12,9 +16,10 @@ from src.environment_data import MarketData
 from src.financial_metrics import financial_metrics
 from src.portfolio_env import PortfolioEnv
 from src.ppo_training import (
-    build_ppo, evaluate_policy_financial, load_saved_policy, save_checkpoint, train_one_run,
+    build_ppo, evaluate_policy_financial, first_step_replay_diagnostic, load_saved_policy, save_checkpoint, train_one_run,
 )
 from src.regularization import penalty_coefficient
+from src.replay_audit import _exact_tables, audit_saved_policies
 from src.training_config import TrainingConfig, load_training_config
 from src.training_data import load_development_market
 
@@ -128,6 +133,66 @@ def test_tiny_synthetic_training_saves_and_reloads(tmp_path):
     assert (root / "checkpoints/final/model.zip").is_file()
     assert (root / "checkpoints/step-000000008/checkpoint.json").is_file()
     assert json.loads((root / "reload_check.json").read_text())["status"] == "passed"
+    diagnostic = first_step_replay_diagnostic(root, synthetic_market("validation"))
+    assert diagnostic["first_action_exact"] is True
+    assert diagnostic["saved_action_execution_exact"] is True
+    assert diagnostic["normalization_frozen"] is True and diagnostic["test_used"] is False
+
+
+def test_replay_in_fresh_process_restores_torch_runtime(tmp_path):
+    root = train_one_run(synthetic_market(), synthetic_market("validation"), tiny_config(), tmp_path,
+                         git_sha="0" * 40, provenance={"synthetic_unit_test": True})
+    # A fresh interpreter must not inherit build_ppo's process-global Torch settings.
+    # Change them deliberately, then require the loader to restore them before prediction.
+    script = textwrap.dedent("""
+        import json, runpy, sys
+        from pathlib import Path
+        import torch
+        from src.ppo_training import replay_saved_run
+        fixture = runpy.run_path(sys.argv[2])["synthetic_market"]
+        torch.set_num_threads(2)
+        torch.use_deterministic_algorithms(False)
+        root = Path(sys.argv[1])
+        output = replay_saved_run(root, fixture("validation"), root.parent / "fresh-process-replay")
+        report = json.loads((output / "replay_report.json").read_text())
+        assert report["status"] == "passed"
+        assert report["torch_runtime_before_load"]["intra_op_threads"] == 2
+        assert report["torch_runtime_before_load"]["deterministic_algorithms"] is False
+        assert report["torch_runtime"]["intra_op_threads"] == 1
+        assert report["torch_runtime"]["deterministic_algorithms"] is True
+        print("Fresh-process exact replay: passed")
+    """)
+    result = subprocess.run([sys.executable, "-c", script, str(root), str(Path(__file__).resolve())],
+                            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+
+
+def test_replay_audit_distinguishes_exactness_from_small_difference():
+    original = pd.DataFrame({"portfolio_value": [1009.5]})
+    changed = original.copy()
+    changed.loc[0, "portfolio_value"] = np.nextafter(changed.loc[0, "portfolio_value"], np.inf)
+    assert _exact_tables(original, original)["exact"] is True
+    assert _exact_tables(original, changed)["exact"] is False
+
+
+def test_full_saved_action_replay_audit_on_synthetic_models(tmp_path):
+    roots = {mode: train_one_run(synthetic_market(), synthetic_market("validation"),
+                                tiny_config(reward_mode=mode), tmp_path / "runs", git_sha="0" * 40)
+             for mode in ("none", "fixed", "adaptive")}
+    before = {mode: (root / "metadata.json").read_bytes() for mode, root in roots.items()}
+    output = audit_saved_policies(synthetic_market("validation"), roots, tmp_path / "audits")
+    report = json.loads((output / "audit_report.json").read_text())
+    assert report["status"] == "diagnostic_complete" and report["training_performed"] is False
+    assert report["test_used"] is False and report["thresholds"].startswith("none;")
+    for mode, comparison in report["runs"].items():
+        assert comparison["saved_action_finances"]["exact"] is True
+        assert comparison["policy_actions_on_saved_states_exact"] is True
+        assert comparison["closed_loop_original"]["exact"] is True
+        assert comparison["same_runtime_independent_reload"]["exact"] is True
+        assert comparison["same_runtime_metrics_exact"] is True
+        assert (roots[mode] / "metadata.json").read_bytes() == before[mode]
+    with pytest.raises(ValueError, match="test is forbidden"):
+        audit_saved_policies(synthetic_market("test"), roots, tmp_path / "forbidden")
 
 
 def test_financial_metrics_known_path_and_reward_independence():
@@ -193,7 +258,6 @@ def test_development_adapter_filters_prices_and_never_opens_test(tmp_path, monke
         calls.append(Path(path).name)
         return table
 
-    from pathlib import Path
     monkeypatch.setattr(pd, "read_parquet", bounded)
     for split in ("train", "validation"):
         loaded = load_development_market(tmp_path, split)

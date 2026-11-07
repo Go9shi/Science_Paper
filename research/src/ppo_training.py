@@ -37,6 +37,59 @@ FINANCIAL_FIELDS = ("date", "data_as_of", "portfolio_value", "nav_previous_close
 CORE_LOGS = {"train/loss", "train/policy_gradient_loss", "train/value_loss", "train/entropy_loss", "train/approx_kl"}
 
 
+def torch_runtime_info():
+    return {"intra_op_threads": torch.get_num_threads(),
+            "inter_op_threads": torch.get_num_interop_threads(),
+            "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+            "mkldnn_enabled": torch.backends.mkldnn.enabled}
+
+
+def first_step_replay_diagnostic(run_directory: Path, validation_data):
+    """Separate policy inference differences from execution of the saved action.
+
+    Diagnostic only: no tolerances, no training, no change to original artifacts.
+    A matching first step does not establish full-episode equivalence.
+    """
+    root = Path(run_directory)
+    original = pd.read_csv(root / "validation_financials.csv", float_precision="round_trip",
+                           keep_default_na=False).iloc[0]
+    model, vector, frozen, _ = load_saved_policy(root, validation_data)
+    try:
+        observation = vector.reset()
+        predicted, _ = model.predict(observation, deterministic=True)
+        saved = np.asarray(json.loads(original["action_json"]), dtype=model.action_space.dtype)
+        _, _, _, infos = vector.step(saved.reshape(1, -1))
+        info = infos[0]
+        return {"source_run": root.name, "date": str(original["date"]),
+                "torch_runtime": torch_runtime_info(),
+                "cpu_capability": getattr(torch.backends.cpu, "get_cpu_capability", lambda: "unknown")(),
+                "torch_build_config": torch.__config__.show(),
+                "matmul_precision": torch.get_float32_matmul_precision(),
+                "policy_dtype": str(next(model.policy.parameters()).dtype),
+                "normalized_initial_observation": observation.tolist(),
+                "saved_action": saved.tolist(), "predicted_action": predicted[0].tolist(),
+                "first_action_exact": bool(np.array_equal(saved, predicted[0])),
+                "saved_nav": float(original["portfolio_value"]),
+                "nav_using_saved_action": float(info["portfolio_value"]),
+                "saved_action_execution_exact": bool(info["date"] == original["date"]
+                    and info["portfolio_value"] == float(original["portfolio_value"])),
+                "normalization_frozen": not frozen.training and not frozen.norm_reward,
+                "test_used": False}
+    finally:
+        vector.close()
+
+
+def configure_torch_runtime():
+    """Apply the same numerical settings before training AND checkpoint inference.
+
+    In particular, reload_only does not call build_ppo, so it cannot rely on
+    process-global settings left over by training or by the synthetic tests.
+    """
+    torch.set_num_threads(1)
+    torch.use_deterministic_algorithms(True)
+    return torch_runtime_info()
+
+
 def _require_split(data, split):
     if data.provenance.get("split") != split:
         raise ValueError(f"This operation requires {split} data; test/unknown data are forbidden")
@@ -61,9 +114,8 @@ def make_vector_env(data, config, *, training, stats_path=None, mode=None):
 def build_ppo(data, config: TrainingConfig):
     _require_split(data, "train")
     config.validate()
+    configure_torch_runtime()
     random.seed(config.random_seed); np.random.seed(config.random_seed); torch.manual_seed(config.random_seed)
-    torch.set_num_threads(1)
-    torch.use_deterministic_algorithms(True)
     if config.device == "cuda":
         if not torch.cuda.is_available():
             raise ValueError("CUDA explicitly requested but unavailable; CPU fallback is not silent")
@@ -86,6 +138,7 @@ def save_checkpoint(model, normalizer, config, directory: Path, contract, *, pha
     write_json(directory / "config.json", config.to_dict())
     write_json(directory / "checkpoint.json", {
         "status": "complete", "steps": int(model.num_timesteps), "phase": phase,
+        "torch_runtime": torch_runtime_info(),
         "data_contract": contract,
         "sha256": {name: sha256_file(directory / name) for name in ("model.zip", "vecnormalize.pkl", "config.json")},
     })
@@ -111,6 +164,7 @@ def load_saved_policy(run_directory: Path, validation_data, *, checkpoint=None, 
     config = TrainingConfig.from_dict(json.loads((directory / "config.json").read_text(encoding="utf-8")))
     if reward_mode is not None and reward_mode not in {"none", "fixed", "adaptive"}:
         raise ValueError("Invalid evaluation reward mode")
+    configure_torch_runtime()
     vector, normalizer = make_vector_env(validation_data, config, training=False,
                                          stats_path=directory / "vecnormalize.pkl", mode=reward_mode)
     model = PPO.load(directory / "model.zip", env=vector, device=config.device)
@@ -233,6 +287,8 @@ def train_one_run(train_data, validation_data, config: TrainingConfig, output_ro
     model = vector = logger = callback = None
     try:
         model, vector, normalizer = build_ppo(train_data, config)
+        metadata["runtime"]["torch_settings"] = torch_runtime_info()
+        write_json(root / "metadata.json", metadata)
         logger = configure(str(root / "logs"), ["csv"])
         model.set_logger(logger)
         callback = AuditCallback(root, config, normalizer, _contract(train_data))
@@ -289,22 +345,37 @@ def replay_saved_run(run_directory: Path, validation_data, output_directory: Pat
     if (root / "metadata.sha256").read_text().split() != [sha256_file(root / "metadata.json"), "metadata.json"]:
         raise ValueError("Run metadata checksum mismatch")
     verify_file_map(root, metadata["files_sha256"])
+    runtime_before = torch_runtime_info()
     model, vector, frozen, config = load_saved_policy(root, validation_data)
     try:
         records, metrics = evaluate_policy_financial(model, vector, frozen, validation_data, config)
     finally:
         vector.close()
     previous = pd.read_csv(root / "validation_financials.csv", float_precision="round_trip", keep_default_na=False)
-    pd.testing.assert_frame_equal(previous, records, check_exact=True, check_dtype=False)
-    if json.loads((root / "validation_metrics.json").read_text()) != metrics:
-        raise AssertionError("Replay financial metrics differ")
     output = Path(output_directory)
     if output.resolve().is_relative_to(root.resolve()):
         raise ValueError("Replay evidence must not modify the original run")
     output.mkdir(parents=True, exist_ok=False)
     records.to_csv(output / "validation_replay.csv", index=False)
-    write_json(output / "replay_report.json", {"status": "passed", "source_run": metadata["run_id"],
-        "git_sha": metadata["git_sha"], "observations": len(records), "exact_actions_and_finances": True,
+    write_json(output / "validation_replay_metrics.json", metrics)
+    report = {"status": "failed", "source_run": metadata["run_id"],
+        "git_sha": metadata["git_sha"], "observations": len(records), "exact_actions_and_finances": False,
+        "torch_runtime_before_load": runtime_before, "torch_runtime": torch_runtime_info(),
         "validation_replay_sha256": sha256_file(output / "validation_replay.csv"),
-        "test_used": False, "note": "Fresh-session claim requires the user's separately restarted Colab session"})
+        "validation_replay_metrics_sha256": sha256_file(output / "validation_replay_metrics.json"),
+        "test_used": False, "note": "Fresh-session claim requires the user's separately restarted Colab session"}
+    try:
+        pd.testing.assert_frame_equal(previous, records, check_exact=True, check_dtype=False)
+        if json.loads((root / "validation_metrics.json").read_text()) != metrics:
+            raise AssertionError("Replay financial metrics differ")
+    except AssertionError as error:
+        report["error"] = str(error)
+        try:
+            report["first_step_diagnostic"] = first_step_replay_diagnostic(root, validation_data)
+        except Exception as diagnostic_error:
+            report["diagnostic_error"] = str(diagnostic_error)
+        write_json(output / "replay_report.json", report)
+        raise AssertionError(f"Exact replay failed; diagnostic evidence saved to {output}") from error
+    report.update(status="passed", exact_actions_and_finances=True)
+    write_json(output / "replay_report.json", report)
     return output
