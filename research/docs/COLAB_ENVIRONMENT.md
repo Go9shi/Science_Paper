@@ -1,6 +1,73 @@
 # Google Colab: окружение env-v2
 
-Статус на 2026-11-07: **подготовлено, проверено по метаданным пакетов и статически; в Colab не исполнялось**. Здесь нет нового результата pytest или утверждения об устранении конфликтов на реальном runtime. Старые успешные запуски остаются неизменными.
+Статус на 2026-11-07: **техническая проверка этапа 1 и CPU-профиля env-v2 завершена в пределах полученных свидетельств**. JUnit: 52 passed; активные зависимости и NumPy↔Torch smoke прошли. Пользователь предоставил вывод точного сравнения всех 13 prepared-таблиц: значения, индексы и типы совпали с baseline. Глобальный pip check сохраняет два известных предупреждения. Старые успешные запуски остаются неизменными.
+
+## Фактически проверенный env-v2
+
+RUN_ID `20261107T154124Z-9f1f7c1e`, commit `52fba3a13afdfd68a8bdfdfc24524344dbdc3ea5`. Получены metadata, validation_report, JUnit, environment, pip-check и pip-install-report.
+
+- Python 3.12.13; runtime `release-colab-external-images_20260715-060047_RC00`.
+- numpy 2.0.2; pandas 2.2.2; yfinance 0.2.65; pandas_market_calendars 5.1.1; matplotlib 3.10.3; pyarrow 20.0.0; pytest 8.4.1.
+- gymnasium 1.2.0; stable-baselines3 2.7.0; torch **2.11.0+cpu**. Torch до установки имел ту же версию; torchvision 0.26.0+cpu и torchaudio 2.11.0+cpu записаны в before-install.
+- RL preflight: imports/PPO import/CPU NumPy bridge passed; model_created=false, training_performed=false, project_environment_created=false. CUDA build=null, cuda_available=false: GPU/CUDA совместимость этим запуском не подтверждается.
+- dependency_closure.status=passed, problems пуст. Среди транзитивных версий: exchange-calendars 4.13.2, packaging 26.2, cloudpickle 3.1.2. Остальные фактические версии перечислены в environment.json; это observation, не новый автоматически применяемый lock-файл.
+- JUnit содержит 52 testcase без failures/errors/skipped; metadata/validation_report сообщают complete/verified.
+- Все пять предоставленных файлов, кроме самого metadata, совпали с их SHA-256 в metadata. Полученный metadata имеет SHA-256 `adf21713ad9d63871e7faf37456b244cea390a967d88abb5cb5100d113c2dd64`; sidecar этого запуска не приложен.
+- pip check: отсутствуют прежние конфликты NumPy/Numba и pandas/google-colab. Остались только missing Jedi для IPython и Toolz/Ibis; blocking_or_unreviewed пуст.
+- Before-install уже содержит numpy 2.0.2, pandas 2.2.2, missing Jedi и toolz 1.2.0. Список install в предоставленном pip-install-report пуст: именно этот вызов pip ничего не устанавливал. Это не доказывает отсутствие установок на более ранних шагах/сеансах. Jedi/Ibis предупреждения существовали до данного вызова pip.
+
+Окружение проверено для CPU-импортов и текущего pipeline; это не доказательство корректности обучения, которого не было. Численные операции выполнены пользователем в Colab, не локально Codex.
+
+### Результат сравнения данных после смены pandas/NumPy
+
+Snapshot daily-v1 reused=true, его manifest SHA-256 остался `c7ebbcb88bb04de4daa3e394258b7bd6472f55ec4f4ee4e892486aa5eb41cb19`; размеры и границы splits, sigma_ref `0.11142612683693373` прежние. Однако все 13 hashes prepared Parquet отличаются от старой среды. Изменение метаданных сериализации pandas может объяснить различие, но без чтения обеих версий нельзя считать это установленной причиной или утверждать идентичность всех значений.
+
+Пользователь впоследствии выполнил в Colab `pd.testing.assert_frame_equal(..., check_exact=True, check_freq=False)` для всех 13 файлов между baseline `20261107T145440Z-00c5be42` и env-v2 `20261107T154124Z-9f1f7c1e`. Получен stdout с отдельным «Совпадает» для каждой таблицы и итоговым сообщением без traceback. Все сравнения значений, индексов/колонок и типов прошли. Частота индекса этим вызовом намеренно не сравнивалась; бинарные метаданные Parquet не проверялись на идентичность.
+
+Основание приёмки сравнения — предоставленный вывод пользовательской ячейки, не самостоятельное выполнение Codex и не JSON-отчёт сравнения. Проверенные табличные данные совпадают, несмотря на разные файловые SHA; точная бинарная причина различия (metadata/encoding/compression) отдельно не исследовалась. Для текущего этапа этот вопрос закрыт на уровне точного содержимого таблиц. Дополнительный повторный запуск или новое обучение для этой проверки не требуются.
+
+Для последующих изменений окружения можно использовать следующую расширенную ячейку **в Colab после подключения Drive**. Она дополнительно сверяет физические хеши с manifest и сохраняет отдельный отчёт вне каталогов запусков. Именно этот расширенный вариант с JSON-отчётом пока не предоставлен; он сохранён как повторно используемая процедура. Ни исходные, ни prepared-данные не меняются. Это техническое сравнение, без подбора параметров по test.
+
+```python
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
+import pandas as pd
+
+runs = Path('/content/drive/MyDrive/ppo_turnover_research/stage1/runs')
+old = runs / '20261107T145440Z-00c5be42'
+new = runs / '20261107T154124Z-9f1f7c1e'
+meta_old = json.loads((old / 'metadata.json').read_text())
+meta_new = json.loads((new / 'metadata.json').read_text())
+assert meta_old['config'] == meta_new['config'], 'Scientific configurations differ'
+assert meta_old['snapshot']['manifest_sha256'] == meta_new['snapshot']['manifest_sha256']
+names_old = {n for n in meta_old['files_sha256'] if n.endswith('.parquet')}
+names_new = {n for n in meta_new['files_sha256'] if n.endswith('.parquet')}
+assert names_old == names_new and len(names_old) == 13
+checks = {}
+for name in sorted(names_old):
+    for directory, meta in ((old, meta_old), (new, meta_new)):
+        actual = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+        assert actual == meta['files_sha256'][name], f'Checksum mismatch: {directory / name}'
+    try:
+        pd.testing.assert_frame_equal(pd.read_parquet(old / name), pd.read_parquet(new / name),
+                                      check_exact=True, check_freq=False)
+        checks[name] = {'exact_values_equal': True}
+    except AssertionError as error:
+        checks[name] = {'exact_values_equal': False, 'detail': str(error)}
+report = {'baseline_run': old.name, 'candidate_run': new.name, 'files': checks,
+          'status': 'equal' if all(x['exact_values_equal'] for x in checks.values()) else 'different'}
+stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+output = runs.parent / f'env-v2-data-comparison-{stamp}.json'
+with output.open('x', encoding='utf-8') as stream:
+    json.dump(report, stream, indent=2, ensure_ascii=False)
+print(json.dumps(report, indent=2, ensure_ascii=False))
+print('Comparison report:', output)
+assert report['status'] == 'equal', 'Tables differ: inspect report; do not overwrite baseline or loosen tests'
+```
+
+При different в будущих проверках сначала изучить конкретные столбцы/различия, не ослаблять проверку автоматически. Для текущей пары запусков точное равенство всех prepared-таблиц уже подтверждено предоставленным stdout описанной выше короткой ячейки.
 
 ## Фактически проверенная исходная среда
 
@@ -25,7 +92,7 @@
 
 Все четыре сообщения — реальные несоответствия metadata; «предупреждение» здесь означает ограниченное влияние на используемый проект, а не отсутствие проблемы для соответствующей сторонней библиотеки. Добавление Ibis в проект отменит эту классификацию. Новые неизвестные сообщения, конфликты NumPy/pandas и нарушения активного dependency tree блокируют подготовку.
 
-## Минимальная новая конфигурация (кандидат)
+## Выбранная конфигурация env-v2
 
 Выбрать **Colab Runtime Version 2026.07, CPU, Python 3.12**. [Официальный список runtime](https://research.google.com/colaboratory/runtime-version-faq.html) указывает для неё Python 3.12.13, NumPy 2.0.2 и PyTorch 2.11.0. Вариант точной Torch-сборки, включая CUDA/CPU suffix, определяется реальной distribution metadata и сохраняется; он не угадывается по названию runtime.
 
@@ -99,4 +166,4 @@ print(result.stdout, result.stderr)
 
 ## Что предоставить для приёмки env-v2
 
-`environment.json`, `versions-before-install.json`, `pip-install-report.json`, `pip-check.txt`, `pip-freeze.txt`, `imports.log`, `pytest.xml`, metadata/sidecar и validation_report. При отказе — полный traceback и файлы preflight даже без RUN_DIR. Успех нового окружения будет зафиксирован только по фактическому Colab-запуску. Научные формулы, universe, интервалы, sigma_ref rule и snapshot в этой правке не изменены.
+Для последующих запусков сохранять `environment.json`, `versions-before-install.json`, `pip-install-report.json`, `pip-check.txt`, `pip-freeze.txt`, `imports.log`, `pytest.xml`, metadata/sidecar и validation_report. При отказе — полный traceback и файлы preflight даже без RUN_DIR. Фактический CPU-запуск env-v2 и точное равенство prepared-таблиц со старой средой подтверждены в указанном объёме; GPU не проверен. Научные формулы, universe, интервалы, sigma_ref rule и snapshot в этой правке не изменены.

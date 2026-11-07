@@ -1,4 +1,4 @@
-# Optional import/ABI preflight only; no training or environment creation.
+# Shared RL libraries: Stage 1 import/ABI preflight and Stage 2 env validation; no training.
 # Install together with requirements-colab.txt and the generated runtime constraint.
 # Plain Gymnasium, not gymnasium[torch]/[all] (their NumPy constraints differ).
 # PyTorch must already exist in Colab; preserve its exact installed build.

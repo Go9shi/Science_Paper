@@ -1,4 +1,4 @@
-# Environment candidate env-v2; not yet executed in Colab.
+# CPU env-v2 verified in Stage 1 (commit 52fba3a); Stage 2 validation is pending.
 # Keep the base NumPy/pandas of Colab Runtime Version 2026.07, Python 3.12.
 # Do not use --upgrade/--force-reinstall or change the preinstalled PyTorch build.
 # Colab runtime/transitive dependencies are captured in each run's pip-freeze.txt.
