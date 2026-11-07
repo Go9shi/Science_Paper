@@ -10,6 +10,7 @@ import numpy as np
 
 from .environment_data import MarketData, PRICE_MODEL
 from .portfolio import action_to_weights, rebalance
+from .regularization import penalty_coefficient
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,10 @@ class EnvConfig:
     lambda_base: float = .001
     adaptive_ratio_cap: float = 5.
     max_episode_steps: int | None = None
+    adaptive_alpha: float = 1.
+    adaptive_ratio_floor: float = 1e-6
+    lambda_min: float = 0.
+    lambda_max: float | None = None
 
     def validate(self):
         if not np.isfinite(self.initial_capital) or self.initial_capital <= 0:
@@ -35,6 +40,9 @@ class EnvConfig:
         if self.max_episode_steps is not None and (isinstance(self.max_episode_steps, bool)
                 or not isinstance(self.max_episode_steps, int) or self.max_episode_steps < 1):
             raise ValueError("max_episode_steps must be a positive integer or None")
+        penalty_coefficient(self.penalty_mode, self.lambda_base, 0., 1., alpha=self.adaptive_alpha,
+                            ratio_cap=self.adaptive_ratio_cap, ratio_floor=self.adaptive_ratio_floor,
+                            lambda_min=self.lambda_min, lambda_max=self.lambda_max)
 
 
 class PortfolioEnv(gym.Env):
@@ -130,10 +138,10 @@ class PortfolioEnv(gym.Env):
         net_log = math.log(close_nav / previous_nav)
         gross_log = math.log(gross_close / previous_nav)
         sigma = float(self._sigma[cursor])
-        mode = self.config.penalty_mode
-        coefficient = 0. if mode == "none" else self.config.lambda_base
-        if mode == "adaptive":
-            coefficient *= min(sigma / self.sigma_ref, self.config.adaptive_ratio_cap)
+        coefficient = penalty_coefficient(self.config.penalty_mode, self.config.lambda_base,
+            sigma, self.sigma_ref, alpha=self.config.adaptive_alpha,
+            ratio_cap=self.config.adaptive_ratio_cap, ratio_floor=self.config.adaptive_ratio_floor,
+            lambda_min=self.config.lambda_min, lambda_max=self.config.lambda_max)
         penalty = coefficient * execution.turnover
         reward = net_log - penalty
         self.units, self.cash, self.nav = execution.units, execution.cash, close_nav
