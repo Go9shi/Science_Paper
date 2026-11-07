@@ -1,6 +1,7 @@
 """Small synthetic PPO/configuration/metric tests; execute in Google Colab only."""
 from dataclasses import replace
 import json
+import importlib.metadata
 from pathlib import Path
 import subprocess
 import sys
@@ -193,6 +194,57 @@ def test_full_saved_action_replay_audit_on_synthetic_models(tmp_path):
         assert (roots[mode] / "metadata.json").read_bytes() == before[mode]
     with pytest.raises(ValueError, match="test is forbidden"):
         audit_saved_policies(synthetic_market("test"), roots, tmp_path / "forbidden")
+
+
+@pytest.mark.parametrize("mode", ["audit_only", "reload_only"])
+def test_notebook_uses_model_sha_and_routes_without_training(tmp_path, mode):
+    """Exercise the real dispatch cell with I/O stubs and different evaluator/model SHAs."""
+    notebook = json.loads((Path(__file__).resolve().parents[1] / "notebooks/03_ppo_training.ipynb").read_text(encoding="utf-8"))
+    source = "".join(notebook["cells"][15]["source"])
+    calls = []
+    modes = ("none", "fixed", "adaptive")
+    run_ids = {name: f"synthetic-{name}" for name in modes}
+    for name, run_id in run_ids.items():
+        root = tmp_path / "runs" / run_id
+        root.mkdir(parents=True)
+        write_json(root / "metadata.json", {"git_sha": "a" * 40, "reward_mode": name,
+                                           "versions": {}, "python": sys.version})
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+
+    def forbidden_training(*args, **kwargs):
+        raise AssertionError("Saved-model modes must not call training")
+
+    def audit_stub(data, paths, output):
+        calls.append(("audit", set(paths)))
+        destination = tmp_path / "audit-stub"
+        destination.mkdir(exist_ok=True)
+        write_json(destination / "audit_report.json", {"status": "diagnostic_complete"})
+        return destination
+
+    def replay_stub(root, data, output):
+        calls.append(("reload", root.name))
+        return output
+
+    namespace = {"EXECUTION_MODE": mode, "MODEL_GIT_SHA": "a" * 40, "SOURCE_COMMIT": "b" * 40,
+        "REWARD_MODES": modes, "RELOAD_RUN_IDS": run_ids, "OUTPUT_ROOT": tmp_path,
+        "SESSION_DIR": session_dir, "SESSION_ID": "synthetic-session", "session": {"runs": {}},
+        "validation": object(), "train_one_run": forbidden_training, "audit_saved_policies": audit_stub,
+        "replay_saved_run": replay_stub, "json": json, "importlib": importlib, "sys": sys,
+        "write_json": write_json, "sha256_file": sha256_file}
+    exec(compile(source, "notebook-dispatch", "exec"), namespace)
+    assert set(namespace["run_paths"]) == set(modes)
+    if mode == "audit_only":
+        assert calls == [("audit", set(modes))]
+        assert "replay_audit_directory" in namespace["session"]
+    else:
+        assert len(calls) == 3 and all(call[0] == "reload" for call in calls)
+    first = tmp_path / "runs" / run_ids["none"] / "metadata.json"
+    bad = json.loads(first.read_text())
+    bad["git_sha"] = "c" * 40
+    write_json(first, bad)
+    with pytest.raises(RuntimeError, match="MODEL_GIT_SHA"):
+        exec(compile(source, "notebook-dispatch", "exec"), namespace)
 
 
 def test_financial_metrics_known_path_and_reward_independence():
