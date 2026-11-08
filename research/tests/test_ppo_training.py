@@ -140,6 +140,27 @@ def test_tiny_synthetic_training_saves_and_reloads(tmp_path):
     assert diagnostic["normalization_frozen"] is True and diagnostic["test_used"] is False
 
 
+def test_run_creation_callback_records_path_before_model_initialization(tmp_path, monkeypatch):
+    roots = []
+
+    def created(root):
+        roots.append(root)
+        meta = json.loads((root / "metadata.json").read_text())
+        assert meta["status"] == "started" and meta["stage"] == 4
+        assert (root / "config.json").is_file()
+
+    def stop_before_model(*args):
+        assert roots
+        raise RuntimeError("Intentional pre-model failure")
+
+    monkeypatch.setattr("src.ppo_training.build_ppo", stop_before_model)
+    with pytest.raises(RuntimeError, match="pre-model"):
+        train_one_run(synthetic_market(), synthetic_market("validation"), tiny_config(), tmp_path,
+                      git_sha="0" * 40, stage=4, on_run_created=created)
+    meta = json.loads((roots[0] / "metadata.json").read_text())
+    assert meta["status"] == "failed" and meta["training_steps"] == 0
+
+
 def test_replay_in_fresh_process_restores_torch_runtime(tmp_path):
     root = train_one_run(synthetic_market(), synthetic_market("validation"), tiny_config(), tmp_path,
                          git_sha="0" * 40, provenance={"synthetic_unit_test": True})

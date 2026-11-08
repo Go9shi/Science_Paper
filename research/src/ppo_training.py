@@ -259,8 +259,11 @@ class AuditCallback(BaseCallback):
         self.file.close()
 
 
-def train_one_run(train_data, validation_data, config: TrainingConfig, output_root: Path, *, git_sha, provenance=None):
+def train_one_run(train_data, validation_data, config: TrainingConfig, output_root: Path, *, git_sha, provenance=None,
+                  on_run_created=None, stage=3):
     _require_split(train_data, "train"); _require_split(validation_data, "validation")
+    if type(stage) is not int or stage not in {3, 4}:
+        raise ValueError("Unknown training infrastructure stage")
     config.validate()
     if _contract(train_data) != _contract(validation_data):
         raise ValueError("Training and validation data contracts differ")
@@ -268,7 +271,8 @@ def train_one_run(train_data, validation_data, config: TrainingConfig, output_ro
     root = Path(output_root) / run_id
     root.mkdir(parents=True, exist_ok=False)
     write_json(root / "config.json", config.to_dict())
-    metadata = {"stage": 3, "status": "started", "run_id": run_id, "git_sha": git_sha,
+    metadata = {"stage": stage, "status": "started", "run_id": run_id, "git_sha": git_sha,
+        "evaluator_git_sha": git_sha, "training_git_sha": git_sha,
         "config": config.to_dict(), "data_contract": _contract(train_data), "train_provenance": train_data.provenance,
         "validation_provenance": validation_data.provenance, "session_provenance": provenance or {},
         "seed": config.random_seed, "reward_mode": config.reward_mode, "test_used": False,
@@ -286,6 +290,8 @@ def train_one_run(train_data, validation_data, config: TrainingConfig, output_ro
     print("Training run:", root)
     model = vector = logger = callback = None
     try:
+        if on_run_created is not None:
+            on_run_created(root)
         model, vector, normalizer = build_ppo(train_data, config)
         metadata["runtime"]["torch_settings"] = torch_runtime_info()
         write_json(root / "metadata.json", metadata)
