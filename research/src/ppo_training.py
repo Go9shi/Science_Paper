@@ -154,8 +154,13 @@ def _normalization_digest(normalizer):
     return hashlib.sha256(b"".join(parts)).hexdigest()
 
 
-def load_saved_policy(run_directory: Path, validation_data, *, checkpoint=None, reward_mode=None):
-    _require_split(validation_data, "validation")
+def load_saved_policy(run_directory: Path, validation_data, *, checkpoint=None, reward_mode=None,
+                      evaluation_split="validation"):
+    # Existing development callers retain the validation-only default. The locked
+    # out-of-sample workflow explicitly supplies test after verifying its seal.
+    if evaluation_split not in {"validation", "test"}:
+        raise ValueError("Only validation or explicitly authorized test evaluation is allowed")
+    _require_split(validation_data, evaluation_split)
     directory = Path(checkpoint) if checkpoint is not None else Path(run_directory) / "checkpoints" / "final"
     manifest = json.loads((directory / "checkpoint.json").read_text(encoding="utf-8"))
     if manifest.get("status") != "complete" or manifest["data_contract"] != _contract(validation_data):
@@ -171,8 +176,10 @@ def load_saved_policy(run_directory: Path, validation_data, *, checkpoint=None, 
     return model, vector, normalizer, config
 
 
-def evaluate_policy_financial(model, vector, normalizer, data, config):
-    _require_split(data, "validation")
+def evaluate_policy_financial(model, vector, normalizer, data, config, *, evaluation_split="validation"):
+    if evaluation_split not in {"validation", "test"}:
+        raise ValueError("Only validation or explicitly authorized test evaluation is allowed")
+    _require_split(data, evaluation_split)
     if normalizer.training or normalizer.norm_reward:
         raise ValueError("Evaluation normalization must be frozen; reward normalization is forbidden")
     before = _normalization_digest(normalizer)

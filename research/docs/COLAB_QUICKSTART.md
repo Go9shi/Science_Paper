@@ -1,8 +1,31 @@
 # Актуальный запуск в Google Colab
 
-Этот файл — короткая инструкция. История артефактов/ошибок находится в STAGE1/2/3_VALIDATION.md.
+Этот файл — короткая инструкция. История артефактов/ошибок находится в STAGE1/2/3/4_VALIDATION.md.
 План новых запусков — [PILOT_PROTOCOL.md](PILOT_PROTOCOL.md).
-**Этап 4 пока не выполнен; новых passed tests/метрик не заявляем.**
+**Пилот этапа 4 выполнен: 27/27 jobs, 442368 шагов; перед обучением прошли 112 тестов.**
+Артефакты batch `20261115T100446Z-757eee8d` проверены; отчёт и ограничения —
+в [STAGE4_VALIDATION.md](STAGE4_VALIDATION.md). Повторять её обучение не требуется.
+Ниже сохранена инструкция запуска/продолжения; новые обучения не запускать автоматически.
+
+## После пилота: notebooks 05 и 06
+
+Подробный порядок — [POSTPILOT_PROTOCOL.md](POSTPILOT_PROTOCOL.md).
+Новый workflow пока не исполнялся в Colab; старые 112 passed не подтверждают новую версию.
+
+1. Опубликовать новый evaluator и открыть `05_validation_and_freeze.ipynb` из его полного SHA.
+   В новой независимой CPU-сессии указать этот SHA в GIT_REF;
+   RUN_TESTS=True, RUN_REPLAY=True, INDEPENDENT_SESSION=True,
+   RUN_ANALYSIS=True, SEAL_DECISIONS=True. MODEL_GIT_SHA и BATCH_ID оставить из notebook.
+2. Выполнить сверху вниз. При несовпадении replay `diagnostic_complete` сохраняется,
+   lock не создаётся и test закрыт. Прислать всю напечатанную папку stage5 session.
+3. После seal записать SESSION_ID и lock SHA256 вне Drive до открытия test.
+   В новой сессии открыть `06_locked_test_evaluation.ipynb` из **того же evaluator SHA**,
+   указать DECISION_SESSION_ID, LOCK_SHA256, RUN_TESTS=True и ENABLE_TEST=True.
+   Прислать папку stage6 session и весь каталог test_evaluations/<lock SHA>.
+
+В 05/06 нет реального обучения. Test использует девять замороженных final-моделей,
+cash на старте и одинаковые комиссии. Технические повторы сохраняются с тем же lock;
+основной результат — первая полная попытка, повторы не считаются независимыми экспериментами.
 
 ## Какую версию открыть
 

@@ -1,0 +1,32 @@
+{
+  "protocol_id": "ppo-locked-evaluation-v1",
+  "batch_id": "20261115T100446Z-757eee8d",
+  "training_sha": "1e6795abb7c1c59f002f39fd2ec30a063cf6592f",
+  "plan_sha256": "b204bbe4cabd19a3a73dbb3f92d2fed8871d2a7a902f182b9fc077f0e76b33a7",
+  "stage1_run_id": "20261107T154124Z-9f1f7c1e",
+  "seeds": [11, 23, 47],
+  "selected": {"none": "baseline", "fixed": "f01", "adaptive": "a04"},
+  "selection_rule": "mean_across_all_seeds_then_candidate_id",
+  "primary_comparison": "adaptive_minus_fixed",
+  "primary_metric": "net_sharpe",
+  "metrics": ["net_sharpe", "cagr", "maximum_drawdown", "portfolio_turnover_mean_daily", "total_commissions"],
+  "volatility_rule": "high_if_sigma_gt_train_sigma_ref_else_low",
+  "bootstrap": {
+    "method": "paired_stationary_circular",
+    "resamples": 2000,
+    "seed": 20261108,
+    "expected_block_lengths": [20, 10, 40],
+    "confidence": 0.95,
+    "seed_resampling": false,
+    "interval": "percentile",
+    "estimand": "mean_of_seedwise_Sharpe_differences"
+  },
+  "reproducibility_gate": "all_27_exact_in_independent_session",
+  "test_start": "2022-01-01",
+  "test_end_exclusive": "2026-01-01",
+  "test_initial_capital": 1000.0,
+  "test_initial_positions": "all_cash_no_carry_from_validation",
+  "test_policy": "frozen_final_checkpoints_no_training_or_selection",
+  "test_repeat_policy": "same_seal_only_preserve_all_attempts_first_complete_is_primary",
+  "test_access_default": false
+}
