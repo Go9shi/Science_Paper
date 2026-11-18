@@ -1,0 +1,3 @@
+# Preserve exact archived Colab bytes: their SHA256 must survive Git checkouts.
+research/docs/decisions/** -text
+research/docs/results/** -text

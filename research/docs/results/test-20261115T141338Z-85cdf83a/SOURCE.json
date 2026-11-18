@@ -1,0 +1,16 @@
+{
+  "curated_subset": true,
+  "source_archive": "drive-download-20261115T141506Z-1-001.zip",
+  "source_archive_sha256": "dab85c4badb47ece66ffae8040cfaa1ad6f733c8eb37a1c4aa5326bf676b490b",
+  "source_report": "test_evaluations/e5691cf833454e05464892ccaa383c55a77fbfbc8f78187c344bbf81c07cfe43/attempts/20261115T141338Z-85cdf83a/test_report.json",
+  "source_report_sha256": "f4799444b039b2f3bb0f44d55a24802f3e01f4884c744d424cbb61d3532e42dc",
+  "decision_lock_sha256": "e5691cf833454e05464892ccaa383c55a77fbfbc8f78187c344bbf81c07cfe43",
+  "tables_sha256": {
+    "metrics_by_seed.csv": "811150afeb74f4d550286c37e79932e17151388963fdee033a838df659c0dd59",
+    "paired_metrics.csv": "a421fcae9d907fd8799c3fae206571f61448bf4f1c4473af275ca97f63bb9bc1",
+    "seed_stability.csv": "ca8df7735e78e19ac73811ba6334d2c3571404ff1f24124b6d554b432ba8fe0c",
+    "regime_metrics.csv": "428213a8ee954a6a2a0331f8344e7eaa3663748eedb88c6492351f4ec97f9b4a",
+    "turnover_mechanism_by_seed.csv": "e4ca8552afdd815751821c8418d21ed630685233aab2a081620a711bb6ac13a1",
+    "bootstrap_intervals.csv": "f507b522227fad78dd6b14a94091143b83562acc685588cdf54dc97c81ad2a6c"
+  }
+}

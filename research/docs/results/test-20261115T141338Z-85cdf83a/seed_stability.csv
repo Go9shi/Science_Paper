@@ -1,0 +1,16 @@
+comparison,metric,seeds,mean_paired_difference,sample_std_paired_difference,positive_differences,negative_differences,status
+adaptive_minus_fixed,cagr,3,0.0006038846087141891,0.0007303177988517545,2,1,defined
+adaptive_minus_fixed,maximum_drawdown,3,-0.0007632568265409182,0.0008886471248977425,1,2,defined
+adaptive_minus_fixed,net_sharpe,3,0.004106145291066825,0.005422577412832502,2,1,defined
+adaptive_minus_fixed,portfolio_turnover_mean_daily,3,-0.00231075415957388,0.0016766746011388839,0,3,defined
+adaptive_minus_fixed,total_commissions,3,-1.0485937028113124,0.7486253500907726,0,3,defined
+adaptive_minus_none,cagr,3,0.0006087158261344575,0.00046888957471161603,3,0,defined
+adaptive_minus_none,maximum_drawdown,3,-0.0008363019294314414,0.0005347175594591382,0,3,defined
+adaptive_minus_none,net_sharpe,3,0.004236235856728092,0.0034241836460904905,3,0,defined
+adaptive_minus_none,portfolio_turnover_mean_daily,3,-0.0026210851287573056,0.0011134636188999463,0,3,defined
+adaptive_minus_none,total_commissions,3,-1.2296896392580312,0.5066891224165705,0,3,defined
+fixed_minus_none,cagr,3,4.831217420268412e-06,0.00030793204396450523,1,2,defined
+fixed_minus_none,maximum_drawdown,3,-7.304510289052324e-05,0.00036122915280250624,1,2,defined
+fixed_minus_none,net_sharpe,3,0.0001300905656612672,0.0021254778262813725,1,2,defined
+fixed_minus_none,portfolio_turnover_mean_daily,3,-0.0003103309691834255,0.000964459828339488,1,2,defined
+fixed_minus_none,total_commissions,3,-0.18109593644671898,0.4753178781907632,1,2,defined

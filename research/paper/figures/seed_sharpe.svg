@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360" role="img" aria-labelledby="title desc">
+<title id="title">Парные разности Net Sharpe adaptive−fixed</title>
+<desc id="desc">Seed 11: 0.009703214021482331; seed 23: 0.003738446588427591; seed 47: −0.0011232247367094494. Источник: paired_metrics.csv, test-20261115T141338Z-85cdf83a.</desc>
+<rect width="900" height="360" fill="white"/>
+<g font-family="Arial, sans-serif" fill="#182534">
+<text x="40" y="35" font-size="22">Разность Net Sharpe: adaptive − fixed</text>
+<text x="40" y="62" font-size="15">Test 2022–2025 · согласованные seeds</text>
+<g stroke="#dde2e7"><path d="M150 90V270 M250 90V270 M350 90V270 M450 90V270 M550 90V270 M650 90V270 M750 90V270"/></g>
+<path d="M250 85V275" stroke="#273747" stroke-width="2"/>
+<text x="40" y="125" font-size="17">Seed 11</text>
+<text x="40" y="185" font-size="17">Seed 23</text>
+<text x="40" y="245" font-size="17">Seed 47</text>
+<rect x="250" y="103" width="485.161" height="28" fill="#19798b"/>
+<rect x="250" y="163" width="186.922" height="28" fill="#19798b"/>
+<rect x="193.839" y="223" width="56.161" height="28" fill="#b66045"/>
+<text x="747" y="124" font-size="16">+0,009703</text>
+<text x="450" y="184" font-size="16">+0,003738</text>
+<text x="270" y="244" font-size="16">−0,001123</text>
+<g font-size="13" text-anchor="middle"><text x="150" y="296">−0,002</text><text x="250" y="296">0</text><text x="350" y="296">0,002</text><text x="450" y="296">0,004</text><text x="550" y="296">0,006</text><text x="650" y="296">0,008</text><text x="750" y="296">0,010</text></g>
+<text x="40" y="335" font-size="13">Источник: сохранённый paired_metrics.csv. Показаны точечные оценки без доверительных интервалов.</text>
+</g></svg>
